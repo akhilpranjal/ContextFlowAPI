@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from collections import OrderedDict
 import threading
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
-from sentence_transformers import SentenceTransformer
 
 from .config import Settings
+
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
 
 
 class EmbeddingService:
@@ -13,19 +17,22 @@ class EmbeddingService:
 
     def __init__(self, settings: Settings):
         self.settings = settings
-        self._model: SentenceTransformer | None = None
+        self._model: Any | None = None
         self._model_lock = threading.Lock()
         self._cache_lock = threading.RLock()
         # Ordered dict gives a lightweight LRU cache policy for repeated text chunks.
         self._cache: OrderedDict[str, np.ndarray] = OrderedDict()
 
     @property
-    def model(self) -> SentenceTransformer:
+    def model(self) -> Any:
         """Lazily load and cache the sentence-transformer model."""
 
         if self._model is None:
             with self._model_lock:
                 if self._model is None:
+                    # Import lazily to avoid heavy torch/sentence-transformers import cost at app boot.
+                    from sentence_transformers import SentenceTransformer
+
                     self._model = SentenceTransformer(self.settings.embedding_model_name)
         return self._model
 

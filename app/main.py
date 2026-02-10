@@ -94,6 +94,13 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/")
+async def root() -> dict[str, str]:
+    """Basic root endpoint for platform probes and quick sanity checks."""
+
+    return {"service": "ContextFlow RAG API", "status": "ok"}
+
+
 @app.post("/upload", response_model=UploadResponse)
 async def upload_document(
     file: Annotated[UploadFile, File(...)],
