@@ -1,5 +1,5 @@
 from app.config import Settings
-from app.ingest import PageText, chunk_page_text, normalize_text
+from app.ingest import PageText, chunk_pages, normalize_text
 
 
 def test_normalize_text_collapses_whitespace():
@@ -16,6 +16,6 @@ def test_chunk_page_text_uses_overlap():
         ),
     )
     settings = Settings(chunk_size=70, chunk_overlap=25)
-    chunks = chunk_page_text(page, settings.chunk_size, settings.chunk_overlap, "doc.txt")
+    chunks = chunk_pages([page], settings)
     assert len(chunks) >= 2
     assert chunks[0].content.split()[-1] in chunks[1].content
