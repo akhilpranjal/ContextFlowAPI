@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import io
+# The mimetypes module in Python's standard library is used to map filenames 
+# or URLs to MIME types and vice-versa. It relies on file extensions to 
+# guess the type and does not inspect the actual content of the file.
 import mimetypes
 import re
 from dataclasses import dataclass
@@ -47,6 +50,7 @@ def detect_document_type(filename: str, content_type: str | None = None) -> str:
         return "pdf"
     if suffix == ".txt" or content_type in {"text/plain", "application/txt"}:
         return "txt"
+    # If file without suffix, like a weburl then it relies on mimetypes.guess_type
     guessed = mimetypes.guess_type(filename)[0]
     if guessed == "application/pdf":
         return "pdf"
@@ -58,7 +62,9 @@ def detect_document_type(filename: str, content_type: str | None = None) -> str:
 def normalize_text(text: str) -> str:
     """Normalize whitespace while preserving natural reading flow."""
 
+    # Replace null characters with a space
     text = text.replace("\x00", " ")
+    # Substitute all consecutive whitespaces with a single space
     text = _WHITESPACE_RE.sub(" ", text)
     return text.strip()
 

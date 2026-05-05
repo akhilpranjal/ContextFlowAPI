@@ -4,6 +4,14 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# -> To manage application configuration by automatically loading the values from environment 
+# variables, .env files and other resources
+# -> Automatic Loading: If a field is not provided during initialization, Pydantic searches 
+# for a matching environment variable (case-insensitive by default).
+# -> Type Validation: Like standard Pydantic models, it enforces type hints and 
+# validates data as it is loaded.
+# -> Source Priority: It typically prioritizes values in the following order: 
+# init arguments > environment variables > .env file > default values. 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
@@ -47,6 +55,11 @@ class Settings(BaseSettings):
         return self.max_upload_size_mb * 1024 * 1024
 
 
+# Python decorator for memoization
+# LRU keeps the newest 1 setting and erases old ones as it is 
+# Least Recently Used and maxsize is 1
+# Creating Setting() instance everytime a request is made is wasteful
+# So we make sure it is only created only once
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Return a cached settings instance for the application."""
