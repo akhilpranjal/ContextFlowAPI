@@ -7,6 +7,7 @@ Module 5 — Production Patterns
 - Relevant files & symbols
   - `app/config.py`: `Settings`, `get_settings()`
   - `app/main.py`: lifespan, middleware, exception handlers
+  - `app/ingest.py`: upload extraction and chunking via LangChain's `RecursiveCharacterTextSplitter`
   - `app/embeddings.py`: lazy model loading, cache locks
   - `app/vectorstore.py`: FAISS persistence and locking
   - `tests/`: unit tests and test patterns
@@ -34,6 +35,7 @@ Module 5 — Production Patterns
   4. Lazy loading & startup cost
      - Lazily load heavy models on first use to keep cold-start time low; or pre-load during startup if you want readiness gating.
      - Use the `lifespan` context to initialize long-lived singletons (embedding model, FAISS store) once and share via `app.state`.
+     - Keep runtime dependencies aligned with the active environment; this repository expects `langchain-text-splitters` to be installed in the same venv that runs tests and the API.
 
   5. Persistence & durability
      - `FaissVectorStore` supports local file persistence when `ENABLE_FAISS_PERSISTENCE=true` — suitable for single-host setups.
@@ -54,6 +56,7 @@ Module 5 — Production Patterns
      - Integration tests: run ingestion + query flows against a local FAISS instance and small embedding model; use pytest markers to separate slow tests.
      - End-to-end: containerize and run end-to-end smoke tests in CI to validate startup, upload, and query.
      - Add test coverage checks and linting in CI.
+     - Run the suite with the workspace interpreter when validating local dependency installs: `d:/Programming/Github/ContextFlowAPI/.venv/Scripts/python.exe -m pytest -q`.
 
   9. Security
      - Protect API endpoints in production (authentication & authorization). Add API keys or OAuth for clients.
@@ -78,6 +81,7 @@ Module 5 — Production Patterns
   2. Add an integration test that runs `uvicorn app.main:app` in a test container and performs an upload + query.
   3. Configure CI to run linting, tests, and a small smoke test on each PR.
   4. Add an environment-based configuration example for production (`.env.example` already present) and document deployment steps in `README.md`.
+  5. Verify that `langchain-text-splitters` stays pinned in `requirements.txt` so ingestion imports remain stable.
 
 - Templates & snippets
   - Example readiness check in `lifespan`:
@@ -101,7 +105,3 @@ Module 5 — Production Patterns
     def embed_texts(...):
         ...
     ```
-
----
-
-If you'd like, I'll save this exact content to `docs/module_5_production_patterns.md` now and mark the TODO completed. Proceed? (yes/no)
