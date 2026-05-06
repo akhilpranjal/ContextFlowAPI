@@ -6,16 +6,21 @@ import io
 # guess the type and does not inspect the actual content of the file.
 import mimetypes
 import re
+# dataclasses provide a streamlined way to create classes primarily designed 
+# to store data using the @dataclass decorator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+# To type hint an Iterable in Python, you specify that an object can be looped over 
+# (e.g., in a for loop) without requiring it to be a specific type like a list or tuple
+from collections.abc import Iterable
 
+# The PdfReader class in the pypdf library is used to read and extract data from PDF files
 from pypdf import PdfReader
+# For implementing chunking
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from .config import Settings
 
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 _WHITESPACE_RE = re.compile(r"\s+")
 
 
