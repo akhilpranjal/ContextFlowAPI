@@ -2,10 +2,10 @@ Module 3 — Embeddings & Vector Search
 
 - Overview
   - Purpose: convert text chunks into numeric vectors (embeddings) and perform efficient nearest-neighbor search to retrieve relevant context for RAG.
-  - Key responsibilities: produce L2-normalized embeddings, cache repeated requests, index vectors in FAISS, run similarity search, return ranked source metadata.
+  - Key responsibilities: produce L2-normalized embeddings, index vectors in FAISS, run similarity search, return ranked source metadata.
 
 - Relevant files & symbols
-  - `app/embeddings.py`: `EmbeddingService`, `embed_texts()`, `_get_cached_embedding()`, `_put_cached_embedding()`
+  - `app/embeddings.py`: `EmbeddingService`, `embed_texts()`
   - `app/vectorstore.py`: `FaissVectorStore`, `StoredChunk`, `add()`, `search()`, `_ensure_index()`, `_persist()`, `_load_if_available()`, `to_source_chunks()`
 
 - Detailed walkthrough
@@ -17,22 +17,16 @@ Module 3 — Embeddings & Vector Search
 
   2. `EmbeddingService` (in `app/embeddings.py`)
      - Lazy model loading:
-       - The `model` property loads `SentenceTransformer` on first use under `_model_lock` to avoid heavy startup cost.
-     - Caching:
-       - Uses an `OrderedDict` as an LRU cache with `_cache_lock` to store recently computed embeddings.
-       - Controlled by `settings.enable_embedding_cache` and `settings.embedding_cache_max_items`.
+       - The `model` property loads `SentenceTransformer` on first use to avoid heavy startup cost.
      - `embed_texts(texts: list[str]) -> np.ndarray`:
        - Returns L2-normalized embeddings (float32).
        - Steps:
          1. If `texts` empty → return empty array shape (0,0).
-         2. For each text, check cache (if enabled). If cached, reuse embedding.
-         3. Collect missing texts and call `self.model.encode(missing, normalize_embeddings=True, convert_to_numpy=True, ...)`.
-            - `normalize_embeddings=True` ensures returned vectors are L2-normalized (unit length) — important for cosine similarity with inner product index.
-         4. Insert newly computed vectors back into appropriate positions and update cache if enabled.
-         5. Return full 2D array of embeddings as dtype `np.float32`.
-     - Thread-safety:
-       - `_model_lock` ensures only one thread loads the heavy model.
-       - `_cache_lock` (RLock) protects the in-memory cache.
+         2. Call `self.model.encode(texts, normalize_embeddings=True, convert_to_numpy=True, ...)` to get batched, normalized embeddings.
+         3. Return full 2D array of embeddings as dtype `np.float32`.
+     - Notes:
+       - This simplified implementation does not include an in-process LRU cache or explicit thread locks; the model instance is cached on the `EmbeddingService` instance itself.
+       - For high-concurrency or multi-process deployments consider using an external embedding service or process isolation.
 
   3. Faiss vector store (`FaissVectorStore` in `app/vectorstore.py`)
      - Purpose: efficiently store and search vector embeddings with provenance metadata.
@@ -54,13 +48,10 @@ Module 3 — Embeddings & Vector Search
      - Persistence:
        - `_persist()` writes FAISS index to `settings.faiss_index_path` and `self._records` metadata to `settings.faiss_metadata_path` as JSON.
        - `_load_if_available()` loads both files if present and reconstructs `_records`.
-     - `to_source_chunks(results)` converts internal `StoredChunk` + score tuples into API `SourceChunk` schema for responses.
 
 - Design rationale & tradeoffs
   - Inner-product index + normalized embeddings gives fast cosine-similarity search.
   - `IndexFlatIP` is exact (no approximation) but not scalable to billions of vectors; simple and deterministic for small/medium datasets.
-  - LRU caching reduces repeated embedding compute for duplicated or frequently-requested chunks (common during ingestion retries or repeated queries).
-  - Thread locks provide safe concurrent access in multithreaded server (embedding model load and cache operations).
   - Persistence option is simple local disk persistence (suitable for single-host dev or when using a persistent volume). For production at scale, a dedicated vector DB is recommended.
 
 - Edge cases & failure modes
@@ -79,45 +70,11 @@ Module 3 — Embeddings & Vector Search
 - Practical exercises
   1. Run the vectorstore unit test:
      - `pytest tests/test_vectorstore.py`
-  2. Verify embedding cache behavior:
-     - Call `EmbeddingService.embed_texts(["same text","same text"])` and assert only one encode call happens (mock `SentenceTransformer.encode`).
+  2. Programmatic usage example remains the same; call `EmbeddingService.embed_texts(texts)` to get normalized embeddings.
   3. Test persistence:
      - Enable `ENABLE_FAISS_PERSISTENCE=true`, add vectors, restart process, and verify `FaissVectorStore` reloads index and metadata.
   4. Replace `IndexFlatIP` with `IndexHNSWFlat` for approximate nearest neighbor and measure latency/recall tradeoffs.
   5. Add a benchmark to measure embed + search latency for N documents.
-
-- Quick examples
-
-  - Programmatic usage:
-    ```python
-    from app.config import Settings
-    from app.embeddings import EmbeddingService
-    from app.vectorstore import FaissVectorStore, StoredChunk
-    import numpy as np
-
-    settings = Settings(enable_faiss_persistence=False)
-    emb = EmbeddingService(settings)
-    store = FaissVectorStore(settings)
-
-    texts = ["First chunk text.", "Second chunk text."]
-    embeddings = emb.embed_texts(texts)  # (2, d) normalized float32
-    chunks = [
-      StoredChunk(source_id="doc:p1:c0", document_name="doc.pdf", page_number=1, chunk_index=0, content=texts[0]),
-      StoredChunk(source_id="doc:p1:c1", document_name="doc.pdf", page_number=1, chunk_index=1, content=texts[1]),
-    ]
-    store.add(chunks, embeddings)
-
-    q = emb.embed_texts(["query text"])  # (1, d)
-    results = store.search(q, top_k=2)
-    for record, score in results:
-        print(record.source_id, score)
-    ```
-
-- Improvements & next steps
-  - Token-aware chunking: ensure chunks respect LLM token limits by using a tokenizer during chunking.
-  - Batched embedding requests & async encoding: if model supports async/batched processing, optimize throughput.
-  - Replace local FAISS with managed vector DB (Pinecone, Milvus, Qdrant) for horizontal scale and persistence.
-  - Add background tasks to periodically persist snapshots or rebuild indexes.
 
 ---
 
