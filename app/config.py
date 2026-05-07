@@ -21,6 +21,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         populate_by_name=True,
+        extra="ignore",
     )
 
     app_name: str = "ContextFlow RAG API"
@@ -38,13 +39,9 @@ class Settings(BaseSettings):
     top_k: int = Field(default=4, validation_alias="TOP_K")
 
     max_upload_size_mb: int = Field(default=20, validation_alias="MAX_UPLOAD_SIZE_MB")
-    enable_embedding_cache: bool = Field(default=True, validation_alias="ENABLE_EMBEDDING_CACHE")
-    embedding_cache_max_items: int = Field(default=5000, validation_alias="EMBEDDING_CACHE_MAX_ITEMS")
-    enable_faiss_persistence: bool = Field(default=False, validation_alias="ENABLE_FAISS_PERSISTENCE")
-
-    data_dir: Path = Field(default=Path("data"), validation_alias="DATA_DIR")
-    faiss_index_path: Path = Field(default=Path("data/faiss.index"), validation_alias="FAISS_INDEX_PATH")
-    faiss_metadata_path: Path = Field(default=Path("data/faiss_metadata.json"), validation_alias="FAISS_METADATA_PATH")
+    qdrant_api: str = Field(default="", validation_alias="QDRANT_API_KEY")
+    qdrant_url: str = Field(default="", validation_alias="QDRANT_URL")
+    qdrant_collection: str = Field(default="contextflow_chunks", validation_alias="QDRANT_COLLECTION")
 
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
 
@@ -55,17 +52,8 @@ class Settings(BaseSettings):
         return self.max_upload_size_mb * 1024 * 1024
 
 
-# Python decorator for memoization
-# LRU keeps the newest 1 setting and erases old ones as it is 
-# Least Recently Used and maxsize is 1
-# Creating Setting() instance everytime a request is made is wasteful
-# So we make sure it is only created only once
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Return a cached settings instance for the application."""
 
-    settings = Settings()
-    settings.data_dir.mkdir(parents=True, exist_ok=True)
-    settings.faiss_index_path.parent.mkdir(parents=True, exist_ok=True)
-    settings.faiss_metadata_path.parent.mkdir(parents=True, exist_ok=True)
-    return settings
+    return Settings()
