@@ -70,7 +70,3 @@ Module 4 — RAG Pipeline (Retrieval-Augmented Generation)
 
   - Upload flow: `/upload` endpoint → `RAGPipeline.ingest_chunks()` → embeddings + Qdrant upsert.
   - Query flow: `/query` endpoint → `RAGPipeline.answer_question()` → embed question → Qdrant search → build prompt → call Groq → return answer + sources.
-
----
-
-If you want, I'll save this exact content to `docs/module_4_rag_pipeline.md` now. Proceed? (yes/no)

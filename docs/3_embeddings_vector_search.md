@@ -70,7 +70,3 @@ Module 3 — Embeddings & Vector Search
      - Set `QDRANT_URL`, add vectors, restart the process, and verify the same collection still contains the indexed chunks.
   4. Replace `IndexFlatIP` with `IndexHNSWFlat` for approximate nearest neighbor and measure latency/recall tradeoffs.
   5. Add a benchmark to measure embed + search latency for N documents.
-
----
-
-If you want I will now save this exact content to `docs/module_3_embeddings_vector_search.md`. Proceed to save? (yes/no)

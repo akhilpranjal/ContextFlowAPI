@@ -90,7 +90,7 @@ def _extract_pdf_pages(filename: str, file_bytes: bytes) -> list[PageText]:
     for index, page in enumerate(reader.pages, start=1):
         text = normalize_text(page.extract_text() or "")
         if text:
-            pages.append(PageText(document_name=filename, page_number=index, text=normalize_text(text)))
+            pages.append(PageText(document_name=filename, page_number=index, text=text))
     return pages
 
 
