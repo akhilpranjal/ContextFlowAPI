@@ -7,7 +7,7 @@ Production-style FastAPI Retrieval-Augmented Generation (RAG) backend for PDF/TX
 - Upload and index PDF/TXT documents
 - Sentence-aware chunking with overlap
 - Embeddings via `sentence-transformers` (`all-MiniLM-L6-v2`)
-- Retrieval via FAISS cosine similarity search
+- Retrieval via Qdrant cosine similarity search
 - Grounded answer generation via Groq
 - API responses include answer and source chunks
 
@@ -76,8 +76,8 @@ Render uses:
 - Build command: `pip install -r requirements.txt`
 - Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 
-## Notes on Persistence
+## Notes on Retrieval Storage
 
-- By default, FAISS persistence is disabled (`ENABLE_FAISS_PERSISTENCE=false`).
-- On free hosts, local filesystem is often ephemeral. If you restart the service, in-memory index state may reset.
-- For durable storage, use a paid disk volume or external vector DB in a later iteration.
+- Set `QDRANT_URL` to point at a running Qdrant instance, or leave it empty to use the local `data/`-backed Qdrant client for development and tests.
+- Set `QDRANT_COLLECTION` if you want to override the default collection name (`contextflow_chunks`).
+- For durable storage, run Qdrant as a service or use Qdrant Cloud so indexed chunks survive process restarts.

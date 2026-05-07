@@ -16,7 +16,7 @@ from .embeddings import EmbeddingService
 from .ingest import EmptyDocumentError, UnsupportedDocumentError, chunk_pages, extract_pages
 from .rag_pipeline import LLMInvocationError, MissingConfigurationError, RAGPipeline
 from .schemas import ErrorResponse, QueryRequest, QueryResponse, UploadResponse
-from .vectorstore import FaissVectorStore, StoredChunk
+from .vectorstore import QdrantVectorStore, StoredChunk
 
 logger = logging.getLogger("contextflow")
 
@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
     logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO))
     app.state.settings = settings
     app.state.embedding_service = EmbeddingService(settings)
-    app.state.vector_store = FaissVectorStore(settings)
+    app.state.vector_store = QdrantVectorStore(settings)
     app.state.pipeline = RAGPipeline(settings, app.state.embedding_service, app.state.vector_store)
     # App runs here, handling requests
     yield

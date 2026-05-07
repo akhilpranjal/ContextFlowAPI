@@ -7,7 +7,7 @@ from groq import Groq
 from .config import Settings
 from .embeddings import EmbeddingService
 from .schemas import SourceChunk
-from .vectorstore import FaissVectorStore, StoredChunk
+from .vectorstore import QdrantVectorStore, StoredChunk
 
 
 @dataclass(slots=True)
@@ -29,7 +29,7 @@ class LLMInvocationError(RuntimeError):
 class RAGPipeline:
     """Coordinate retrieval and grounded answer generation."""
 
-    def __init__(self, settings: Settings, embedding_service: EmbeddingService, vector_store: FaissVectorStore):
+    def __init__(self, settings: Settings, embedding_service: EmbeddingService, vector_store: QdrantVectorStore):
         self.settings = settings
         self.embedding_service = embedding_service
         self.vector_store = vector_store
