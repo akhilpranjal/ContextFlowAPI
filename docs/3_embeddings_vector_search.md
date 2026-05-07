@@ -2,11 +2,11 @@ Module 3 — Embeddings & Vector Search
 
 - Overview
   - Purpose: convert text chunks into numeric vectors (embeddings) and perform efficient nearest-neighbor search to retrieve relevant context for RAG.
-  - Key responsibilities: produce L2-normalized embeddings, index vectors in FAISS, run similarity search, return ranked source metadata.
+  - Key responsibilities: produce L2-normalized embeddings, index vectors in Qdrant, run similarity search, return ranked source metadata.
 
 - Relevant files & symbols
   - `app/embeddings.py`: `EmbeddingService`, `embed_texts()`
-  - `app/vectorstore.py`: `FaissVectorStore`, `StoredChunk`, `add()`, `search()`, `_ensure_index()`, `_persist()`, `_load_if_available()`, `to_source_chunks()`
+  - `app/vectorstore.py`: `QdrantVectorStore`, `StoredChunk`, `add()`, `search()`, `ensure_collection()`, `to_source_chunks()`
 
 - Detailed walkthrough
 
@@ -28,26 +28,21 @@ Module 3 — Embeddings & Vector Search
        - This simplified implementation does not include an in-process LRU cache or explicit thread locks; the model instance is cached on the `EmbeddingService` instance itself.
        - For high-concurrency or multi-process deployments consider using an external embedding service or process isolation.
 
-  3. Faiss vector store (`FaissVectorStore` in `app/vectorstore.py`)
+  3. Qdrant vector store (`QdrantVectorStore` in `app/vectorstore.py`)
      - Purpose: efficiently store and search vector embeddings with provenance metadata.
      - StoredChunk dataclass holds `source_id`, `document_name`, `page_number`, `chunk_index`, `content`.
      - Index choice:
-       - Uses `faiss.IndexFlatIP(dimension)` — an inner-product (dot product) index.
-       - Because embeddings are L2-normalized, inner product is equivalent to cosine similarity (cosine = dot(u,v) when ||u||=||v||=1).
+- Uses a Qdrant collection with cosine distance.
+     - Because embeddings are L2-normalized, cosine distance gives stable semantic nearest-neighbor search.
      - `add(chunks, embeddings)`:
        - Validations: non-empty, embeddings must be 2D, lengths must match.
-       - Lazily calls `_ensure_index(embeddings.shape[1])` to initialize FAISS index and set expected dimension.
-       - Adds embeddings to the index and appends `chunks` to `_records`.
-       - If `enable_faiss_persistence` is true, persist index and metadata to disk.
+       - Lazily calls `ensure_collection(embeddings.shape[1])` to create the collection when needed.
+       - Upserts points with chunk provenance stored in the payload.
      - `search(query_embedding, top_k)`:
-       - Validates `top_k`.
-       - Ensures index exists and not empty.
-       - Normalizes/reshapes query embedding to (1, d) if needed.
-       - Calls FAISS `search` to get `scores` and `indices` and returns a list of `(StoredChunk, float(score))` ordered by highest score first.
-       - Note: scores are inner-product values (range depends on embedding values; with normalized embeddings range is [-1,1]).
-     - Persistence:
-       - `_persist()` writes FAISS index to `settings.faiss_index_path` and `self._records` metadata to `settings.faiss_metadata_path` as JSON.
-       - `_load_if_available()` loads both files if present and reconstructs `_records`.
+       - Validates `top_k` and reshapes a single query vector when needed.
+       - Calls Qdrant search and returns the scored points ordered by highest score first.
+     - `to_source_chunks(results)`:
+       - Converts Qdrant payloads back into `SourceChunk` response models.
 
 - Design rationale & tradeoffs
   - Inner-product index + normalized embeddings gives fast cosine-similarity search.
@@ -64,15 +59,15 @@ Module 3 — Embeddings & Vector Search
   - Persistence inconsistencies:
     - If index file exists but metadata missing (or vice-versa), `_load_if_available()` skips load.
   - Memory & performance:
-    - `IndexFlatIP` keeps all vectors in RAM; memory grows linearly with number of vectors.
-    - For larger datasets, consider approximate indexes (HNSW or IVF) or external vector stores.
+- Qdrant keeps vectors in the configured Qdrant backend rather than in-process RAM.
+     - For larger datasets, scale Qdrant using its own storage and deployment options instead of keeping vectors inside the API process.
 
 - Practical exercises
   1. Run the vectorstore unit test:
      - `pytest tests/test_vectorstore.py`
   2. Programmatic usage example remains the same; call `EmbeddingService.embed_texts(texts)` to get normalized embeddings.
   3. Test persistence:
-     - Enable `ENABLE_FAISS_PERSISTENCE=true`, add vectors, restart process, and verify `FaissVectorStore` reloads index and metadata.
+     - Set `QDRANT_URL`, add vectors, restart the process, and verify the same collection still contains the indexed chunks.
   4. Replace `IndexFlatIP` with `IndexHNSWFlat` for approximate nearest neighbor and measure latency/recall tradeoffs.
   5. Add a benchmark to measure embed + search latency for N documents.
 

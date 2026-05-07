@@ -9,7 +9,7 @@ Module 5 — Production Patterns
   - `app/main.py`: lifespan, middleware, exception handlers
   - `app/ingest.py`: upload extraction and chunking via LangChain's `RecursiveCharacterTextSplitter`
   - `app/embeddings.py`: lazy model loading, cache locks
-  - `app/vectorstore.py`: FAISS persistence and locking
+  - `app/vectorstore.py`: Qdrant client access and retrieval helpers
   - `tests/`: unit tests and test patterns
 
 - Topics and best practices
@@ -28,19 +28,19 @@ Module 5 — Production Patterns
      - Health & readiness endpoints: `GET /health` and optionally readiness checks to indicate when the model/index is ready.
 
   3. Thread-safety & concurrency
-     - Use locks for shared in-memory resources: `_model_lock` in `EmbeddingService` and `_lock` in `FaissVectorStore` are correct patterns.
+     - Use locks for shared in-memory resources: `_model_lock` in `EmbeddingService` remains important; the Qdrant client itself is managed externally rather than through an in-process vector index.
      - Prefer process-level isolation for heavy models: multiple worker processes (uvicorn/gunicorn) reduce GIL contention, but increase memory usage due to separate model copies.
      - Consider using a separate service for heavy tasks (embedding or indexing) behind a queue (Redis/RabbitMQ) to scale independently.
 
   4. Lazy loading & startup cost
      - Lazily load heavy models on first use to keep cold-start time low; or pre-load during startup if you want readiness gating.
-     - Use the `lifespan` context to initialize long-lived singletons (embedding model, FAISS store) once and share via `app.state`.
+     - Use the `lifespan` context to initialize long-lived singletons (embedding model, Qdrant client wrapper) once and share via `app.state`.
      - Keep runtime dependencies aligned with the active environment; this repository expects `langchain-text-splitters` to be installed in the same venv that runs tests and the API.
 
   5. Persistence & durability
-     - `FaissVectorStore` supports local file persistence when `ENABLE_FAISS_PERSISTENCE=true` — suitable for single-host setups.
-     - For production, use managed or distributed vector DBs (Qdrant, Milvus, Pinecone) for durability, scaling, and high availability.
-     - Backups: persist FAISS index and metadata regularly; keep snapshots in durable object storage (S3, GCS).
+     - `QdrantVectorStore` stores vectors in a Qdrant backend and is suitable for local Docker, self-hosted, or managed Qdrant deployments.
+     - For production, use a durable Qdrant instance or managed Qdrant Cloud so indexed chunks survive restarts and can scale independently of the API.
+     - Backups: snapshot the Qdrant collection or back up the underlying Qdrant storage according to your deployment strategy.
 
   6. Prompt & context management
      - Implement token-aware context management to avoid exceeding the LLM context window (count tokens, truncate older/less relevant sources).
@@ -52,8 +52,8 @@ Module 5 — Production Patterns
      - Return helpful error messages without leaking secrets.
 
   8. Testing & CI
-     - Unit tests: isolate services via dependency injection and mocks (mock `EmbeddingService` and `FaissVectorStore`).
-     - Integration tests: run ingestion + query flows against a local FAISS instance and small embedding model; use pytest markers to separate slow tests.
+     - Unit tests: isolate services via dependency injection and mocks (mock `EmbeddingService` and `QdrantVectorStore`).
+     - Integration tests: run ingestion + query flows against a local Qdrant instance and a small embedding model; use pytest markers to separate slow tests.
      - End-to-end: containerize and run end-to-end smoke tests in CI to validate startup, upload, and query.
      - Add test coverage checks and linting in CI.
      - Run the suite with the workspace interpreter when validating local dependency installs: `d:/Programming/Github/ContextFlowAPI/.venv/Scripts/python.exe -m pytest -q`.
@@ -69,7 +69,7 @@ Module 5 — Production Patterns
 
   11. Deployment patterns
      - Containerize application with a minimal image; use prebuilt wheel if startup cost matters.
-     - Use multiple replicas behind a load balancer; ensure FAISS persistence uses shared volumes or external DB.
+     - Use multiple replicas behind a load balancer; ensure all replicas point at the same Qdrant backend if they need shared retrieval state.
      - Use readiness probes that fail until index and model are ready.
 
   12. Scaling considerations

@@ -178,7 +178,7 @@ class ErrorResponse(BaseModel):
 
 Your app needs **expensive resources** that should be initialized **once at startup**:
 - Embedding model (100MB+ loaded into RAM)
-- FAISS vector store
+- Qdrant vector store
 - Groq API client
 
 If you initialize these **per request**, your API would be **glacially slow**.
@@ -197,7 +197,7 @@ async def lifespan(app: FastAPI):
     logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO))
     app.state.settings = settings
     app.state.embedding_service = EmbeddingService(settings)
-    app.state.vector_store = FaissVectorStore(settings)
+    app.state.vector_store = QdrantVectorStore(settings)
     app.state.pipeline = RAGPipeline(settings, app.state.embedding_service, app.state.vector_store)
     
     yield  # ⬅️ App runs here, handling requests
