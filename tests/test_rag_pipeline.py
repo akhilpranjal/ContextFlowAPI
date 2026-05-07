@@ -2,7 +2,7 @@ import numpy as np
 
 from app.config import Settings
 from app.rag_pipeline import MissingConfigurationError, RAGPipeline
-from app.vectorstore import FaissVectorStore, StoredChunk
+from app.vectorstore import QdrantVectorStore, StoredChunk
 
 
 class FakeEmbeddingService:
@@ -35,8 +35,8 @@ class FakeGroqClient:
 
 
 def test_answer_question_requires_groq_key():
-    settings = Settings(groq_api_key="")
-    pipeline = RAGPipeline(settings, FakeEmbeddingService(), FaissVectorStore(settings))
+    settings = Settings(groq_api_key="", qdrant_collection="test_answer_question_requires_groq_key")
+    pipeline = RAGPipeline(settings, FakeEmbeddingService(), QdrantVectorStore(settings))
     try:
         pipeline.answer_question("test")
         assert False, "Expected MissingConfigurationError"
@@ -45,8 +45,8 @@ def test_answer_question_requires_groq_key():
 
 
 def test_answer_question_returns_fallback_when_no_sources():
-    settings = Settings(groq_api_key="dummy")
-    pipeline = RAGPipeline(settings, FakeEmbeddingService(), FaissVectorStore(settings))
+    settings = Settings(groq_api_key="dummy", qdrant_collection="test_answer_question_returns_fallback_when_no_sources")
+    pipeline = RAGPipeline(settings, FakeEmbeddingService(), QdrantVectorStore(settings))
     pipeline.client = FakeGroqClient()
 
     response = pipeline.answer_question("what is alpha")
@@ -55,8 +55,8 @@ def test_answer_question_returns_fallback_when_no_sources():
 
 
 def test_answer_question_returns_answer_with_sources():
-    settings = Settings(groq_api_key="dummy", top_k=1)
-    vector_store = FaissVectorStore(settings)
+    settings = Settings(groq_api_key="dummy", top_k=1, qdrant_collection="test_answer_question_returns_answer_with_sources")
+    vector_store = QdrantVectorStore(settings)
     pipeline = RAGPipeline(settings, FakeEmbeddingService(), vector_store)
     pipeline.client = FakeGroqClient()
 
