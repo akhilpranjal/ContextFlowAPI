@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import json
-import threading
-from dataclasses import asdict, dataclass
+import uuid
+from dataclasses import dataclass
 
-import faiss
 import numpy as np
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, PointStruct, VectorParams
 
 from .config import Settings
 from .schemas import SourceChunk
@@ -20,97 +20,105 @@ class StoredChunk:
     content: str
 
 
-class FaissVectorStore:
-    """Store chunk embeddings in FAISS with cosine similarity search."""
+class QdrantVectorStore:
+    """Store chunk embeddings in Qdrant with cosine similarity search."""
 
-    def __init__(self, settings: Settings):
-        self.settings = settings
-        self._lock = threading.RLock()
-        self._index: faiss.Index | None = None
-        self._records: list[StoredChunk] = []
-        self._dimension: int | None = None
-        if self.settings.enable_faiss_persistence:
-            self._load_if_available()
-
-    def add(self, chunks: list[StoredChunk], embeddings: np.ndarray) -> None:
-        """Add chunk records and their normalized embeddings to the FAISS index."""
-
-        if len(chunks) == 0:
-            return
-        if embeddings.ndim != 2:
-            raise ValueError("embeddings must be a 2D matrix")
-        if len(chunks) != len(embeddings):
-            raise ValueError("chunks and embeddings must have the same length")
-
-        with self._lock:
-            self._ensure_index(embeddings.shape[1])
-            assert self._index is not None
-            self._index.add(embeddings)
-            self._records.extend(chunks)
-            if self.settings.enable_faiss_persistence:
-                self._persist()
-
-    def search(self, query_embedding: np.ndarray, top_k: int) -> list[tuple[StoredChunk, float]]:
-        """Return top-k records ranked by cosine similarity."""
-
-        if top_k <= 0:
-            raise ValueError("top_k must be positive")
-        with self._lock:
-            if self._index is None or self._index.ntotal == 0:
-                return []
-            query = np.asarray(query_embedding, dtype=np.float32)
-            if query.ndim == 1:
-                query = query.reshape(1, -1)
-            scores, indices = self._index.search(query, min(top_k, self._index.ntotal))
-            results: list[tuple[StoredChunk, float]] = []
-            for score, index in zip(scores[0], indices[0], strict=False):
-                if index < 0:
-                    continue
-                record = self._records[index]
-                results.append((record, float(score)))
-            return results
-
-    def _ensure_index(self, dimension: int) -> None:
-        """Initialize index lazily and prevent mixed embedding dimensions."""
-
-        if self._index is None:
-            self._dimension = dimension
-            self._index = faiss.IndexFlatIP(dimension)
-            return
-        if self._dimension != dimension:
-            raise ValueError(f"Embedding dimension changed from {self._dimension} to {dimension}")
-
-    def _persist(self) -> None:
-        """Persist FAISS index and metadata to local disk."""
-
-        assert self._index is not None
-        faiss.write_index(self._index, str(self.settings.faiss_index_path))
-        payload = [asdict(record) for record in self._records]
-        self.settings.faiss_metadata_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
-    def _load_if_available(self) -> None:
-        """Load persisted FAISS index and metadata if both are present."""
-
-        if not self.settings.faiss_index_path.exists() or not self.settings.faiss_metadata_path.exists():
-            return
-        index = faiss.read_index(str(self.settings.faiss_index_path))
-        metadata = json.loads(self.settings.faiss_metadata_path.read_text(encoding="utf-8"))
-        self._index = index
-        self._dimension = index.d
-        self._records = [StoredChunk(**item) for item in metadata]
+    def __init__(self, settings: Settings, client: QdrantClient | None = None):
+        self.collection_name = settings.qdrant_collection
+        self.client = client or self._build_client(settings)
 
     @staticmethod
-    def to_source_chunks(results: list[tuple[StoredChunk, float]]) -> list[SourceChunk]:
-        """Convert internal store records into API response schema objects."""
+    def _build_client(settings: Settings) -> QdrantClient:
+        if settings.qdrant_url:
+            return QdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api or None)
+        return QdrantClient(path="data")
 
-        return [
-            SourceChunk(
-                source_id=record.source_id,
-                document_name=record.document_name,
-                page_number=record.page_number,
-                chunk_index=record.chunk_index,
-                score=score,
-                content=record.content,
+    def ensure_collection(self, dimension: int) -> None:
+        collections = self.client.get_collections().collections
+        names = {collection.name for collection in collections}
+
+        if self.collection_name not in names:
+            self.client.create_collection(
+                collection_name=self.collection_name,
+                vectors_config=VectorParams(
+                    size=dimension,
+                    distance=Distance.COSINE,
+                ),
             )
-            for record, score in results
+
+    def add(self, chunks: list[StoredChunk], embeddings: np.ndarray) -> None:
+        """Add chunk records and their normalized embeddings to Qdrant."""
+
+        vector_array = np.asarray(embeddings, dtype=np.float32)
+        if vector_array.ndim != 2:
+            raise ValueError("embeddings must be a 2D array")
+        if len(chunks) != len(vector_array):
+            raise ValueError("chunks and embeddings must have the same length")
+        if not chunks:
+            return
+
+        self.ensure_collection(vector_array.shape[1])
+
+        points = [
+            PointStruct(
+                id=str(uuid.uuid4()),
+                vector=vector.tolist(),
+                payload={
+                    "source_id": chunk.source_id,
+                    "document_name": chunk.document_name,
+                    "page_number": chunk.page_number,
+                    "chunk_index": chunk.chunk_index,
+                    "content": chunk.content,
+                },
+            )
+            for chunk, vector in zip(chunks, vector_array)
         ]
+
+        self.client.upsert(collection_name=self.collection_name, points=points)
+
+    def search(self, query_embedding: np.ndarray, top_k: int) -> list[PointStruct]:
+        """Return top-k records ranked by cosine similarity."""
+
+        query_array = np.asarray(query_embedding, dtype=np.float32)
+        if query_array.ndim == 2:
+            if query_array.shape[0] != 1:
+                raise ValueError("query_embedding must describe a single query vector")
+            query_array = query_array[0]
+        elif query_array.ndim != 1:
+            raise ValueError("query_embedding must be a 1D or 2D array")
+
+        collections = {collection.name for collection in self.client.get_collections().collections}
+        if self.collection_name not in collections:
+            return []
+
+        results = self.client.query_points(
+            collection_name=self.collection_name,
+            query=query_array.tolist(),
+            limit=top_k,
+        )
+        return list(results.points)
+
+    @staticmethod
+    def to_source_chunks(results: list[PointStruct]) -> list[SourceChunk]:
+        """Convert Qdrant search results to API source chunks."""
+
+        sources: list[SourceChunk] = []
+        for result in results:
+            payload = result.payload or {}
+            page_number = payload.get("page_number")
+            if page_number in {None, ""}:
+                normalized_page_number = None
+            else:
+                normalized_page_number = int(page_number)
+
+            sources.append(
+                SourceChunk(
+                    source_id=str(payload.get("source_id", "")),
+                    document_name=str(payload.get("document_name", "")),
+                    page_number=normalized_page_number,
+                    chunk_index=int(payload.get("chunk_index", 0)),
+                    score=float(result.score or 0.0),
+                    content=str(payload.get("content", "")),
+                )
+            )
+        return sources
