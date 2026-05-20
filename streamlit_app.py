@@ -400,12 +400,14 @@ if "api_base_url" not in st.session_state:
 
 if use_embedded_runtime():
     api_status = "Embedded runtime"
+    runtime_label = "Production"
 else:
     try:
         health_data = cached_health(normalize_base_url(st.session_state.api_base_url))
         api_status = f"Connected ({health_data.get('status', 'ok')})"
     except requests.RequestException:
         api_status = "Disconnected"
+    runtime_label = "Local API"
 
 
 st.markdown(
@@ -427,26 +429,26 @@ st.markdown(
         </p>
         <div class="hero-row">
             <div class="pill">Deployment: Streamlit Cloud</div>
-            <div class="pill">Runtime: %s</div>
+            <div class="pill">Mode: %s</div>
             <div class="pill">Live URL: contextflowapi.streamlit.app</div>
         </div>
         <a class="hero-link" href="https://contextflowapi.streamlit.app/" target="_blank" rel="noopener noreferrer">
             Open the live app
         </a>
     </div>
-    """ % html.escape(api_status),
+    """ % html.escape(runtime_label),
     unsafe_allow_html=True,
 )
 
 columns = st.columns(3)
 with columns[0]:
-    render_metric("API status", api_status, "Health check against the running FastAPI service")
+    render_metric("Runtime", runtime_label, "Embedded on Streamlit Cloud for the public deployment")
 with columns[1]:
     render_metric("Upload types", "PDF / TXT", "The API accepts supported document types and rejects others")
 with columns[2]:
     render_metric("Answer mode", "Grounded", "Responses come from retrieval plus Groq-generated synthesis")
 
-top_actions = st.columns([1, 1, 1])
+top_actions = st.columns([1, 1])
 with top_actions[0]:
     if st.button("Reset chat", use_container_width=True):
         st.session_state.messages = [
@@ -458,18 +460,28 @@ with top_actions[0]:
         st.rerun()
 with top_actions[1]:
     st.markdown(f'<a class="ghost-link" href="{LIVE_APP_URL}" target="_blank" rel="noopener noreferrer">Open public deployment</a>', unsafe_allow_html=True)
-with top_actions[2]:
-    if not use_embedded_runtime():
-        st.caption("Client mode still works via CONTEXTFLOW_API_URL for local setups.")
 
-tab_chat, tab_upload, tab_guide = st.tabs(["Chat", "Upload", "Guide"])
+if not use_embedded_runtime():
+    st.caption("Client mode still works via CONTEXTFLOW_API_URL for local setups.")
+
+if use_embedded_runtime():
+    tab_chat, tab_upload = st.tabs(["Chat", "Upload"])
+    tab_guide = None
+else:
+    tab_chat, tab_upload, tab_guide = st.tabs(["Chat", "Upload", "Guide"])
 
 with tab_upload:
     st.markdown('<div class="section-heading">Index a document</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="small-note">Choose a local file, send it to <code>/upload</code>, and the backend will chunk, embed, and store it in Qdrant.</div>',
-        unsafe_allow_html=True,
-    )
+    if use_embedded_runtime():
+        st.markdown(
+            '<div class="small-note">Choose a file and the public deployment will chunk, embed, and store it automatically.</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            '<div class="small-note">Choose a local file, send it to <code>/upload</code>, and the backend will chunk, embed, and store it in Qdrant.</div>',
+            unsafe_allow_html=True,
+        )
 
     upload_col, info_col = st.columns([1.2, 0.8])
     with upload_col:
@@ -487,7 +499,7 @@ with tab_upload:
                 <div class="metric-label">What happens next</div>
                 <div class="metric-value">Chunk, embed, store</div>
                 <div class="metric-caption">
-                    The backend extracts page text, performs sentence-aware chunking, generates embeddings,
+                    The app extracts page text, performs sentence-aware chunking, generates embeddings,
                     and writes the chunks into Qdrant.
                 </div>
             </div>
@@ -527,10 +539,16 @@ with tab_upload:
 
 with tab_chat:
     st.markdown('<div class="section-heading">Ask a question</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="small-note">The API will retrieve the most relevant chunks and generate a grounded answer. Source chunks are shown under each response.</div>',
-        unsafe_allow_html=True,
-    )
+    if use_embedded_runtime():
+        st.markdown(
+            '<div class="small-note">The public deployment will retrieve the most relevant chunks and generate a grounded answer. Source chunks are shown under each response.</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            '<div class="small-note">The API will retrieve the most relevant chunks and generate a grounded answer. Source chunks are shown under each response.</div>',
+            unsafe_allow_html=True,
+        )
 
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
@@ -564,32 +582,33 @@ with tab_chat:
             with st.chat_message("assistant"):
                 st.error(error_text)
 
-with tab_guide:
-    st.markdown('<div id="guide"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-heading">How to run the stack</div>', unsafe_allow_html=True)
-    guide_col, notes_col = st.columns([1, 1])
-    with guide_col:
-        st.markdown("**Live app**")
-        st.markdown(f'[Open the live app]({LIVE_APP_URL})')
-        st.markdown("**Local backend**")
-        st.code("python -m uvicorn app.main:app --reload", language="powershell")
-        st.markdown("**Local Streamlit UI**")
-        st.code("streamlit run streamlit_app.py", language="powershell")
+if tab_guide is not None:
+    with tab_guide:
+        st.markdown('<div id="guide"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-heading">How to run the stack</div>', unsafe_allow_html=True)
+        guide_col, notes_col = st.columns([1, 1])
+        with guide_col:
+            st.markdown("**Live app**")
+            st.markdown(f'[Open the live app]({LIVE_APP_URL})')
+            st.markdown("**Local backend**")
+            st.code("python -m uvicorn app.main:app --reload", language="powershell")
+            st.markdown("**Local Streamlit UI**")
+            st.code("streamlit run streamlit_app.py", language="powershell")
 
-    with notes_col:
-        st.markdown("**Expected environment variables**")
-        st.code(
-            "\n".join(
-                [
-                    '$env:GROQ_API_KEY="your_groq_api_key"',
-                    '$env:GROQ_MODEL="llama-3.3-70b-versatile"',
-                    '$env:CONTEXTFLOW_API_URL="http://127.0.0.1:8000"',
-                ]
-            ),
-            language="powershell",
-        )
+        with notes_col:
+            st.markdown("**Expected environment variables**")
+            st.code(
+                "\n".join(
+                    [
+                        '$env:GROQ_API_KEY="your_groq_api_key"',
+                        '$env:GROQ_MODEL="llama-3.3-70b-versatile"',
+                        '$env:CONTEXTFLOW_API_URL="http://127.0.0.1:8000"',
+                    ]
+                ),
+                language="powershell",
+            )
 
-    st.markdown("**Behavior**")
-    st.write("• Uploading uses the `/upload` endpoint and stores chunks in Qdrant.")
-    st.write("• Asking a question uses the `/query` endpoint and renders the answer with source chunk previews.")
-    st.write("• If the backend returns an error, the UI shows the API response instead of swallowing it.")
+        st.markdown("**Behavior**")
+        st.write("• Uploading uses the `/upload` endpoint and stores chunks in Qdrant.")
+        st.write("• Asking a question uses the `/query` endpoint and renders the answer with source chunk previews.")
+        st.write("• If the backend returns an error, the UI shows the API response instead of swallowing it.")
