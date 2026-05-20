@@ -329,17 +329,21 @@ else:
     runtime_label = "Local API"
 
 
-st.markdown(
-    """
-    <div class="hero">
-        <h1 class="title">ContextFlow</h1>
-        <p class="subtitle">
-            Upload documents, index them in Qdrant, and ask grounded questions from a clean Streamlit interface.
-        </p>
+markup = """
+<div class="hero">
+    <h1 class="title">ContextFlow</h1>
+    <p class="subtitle">
+        Upload documents, index them in Qdrant, and ask grounded questions from a clean Streamlit interface.
+    </p>
+    <div class="hero-row">
+        <div class="pill">Deployment: Streamlit Cloud</div>
+        <div class="pill">Mode: {RUNTIME_LABEL}</div>
+        <div class="pill">Live URL: contextflowapi.streamlit.app</div>
     </div>
-    """ % html.escape(runtime_label),
-    unsafe_allow_html=True,
-)
+</div>
+"""
+markup = markup.replace("{RUNTIME_LABEL}", html.escape(runtime_label))
+st.markdown(markup, unsafe_allow_html=True)
 
 top_actions = st.columns([1, 1])
 with top_actions[0]:
