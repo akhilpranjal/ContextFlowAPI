@@ -22,7 +22,7 @@ st.set_page_config(
     page_title="ContextFlow Studio",
     page_icon="📚",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 
@@ -57,25 +57,59 @@ st.markdown(
 
     .hero {
         border: 1px solid var(--border);
-        background: linear-gradient(135deg, rgba(245, 158, 11, 0.16), rgba(13, 27, 48, 0.92) 38%, rgba(6, 12, 22, 0.96));
-        border-radius: 24px;
-        padding: 1.5rem 1.6rem;
-        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+        background: linear-gradient(180deg, rgba(13, 27, 48, 0.95), rgba(7, 17, 31, 0.92));
+        border-radius: 22px;
+        padding: 1.4rem 1.5rem;
+        box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
     }
 
-    .hero-grid {
-        display: grid;
-        grid-template-columns: 1.7fr 1fr;
+    .header-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
         gap: 1rem;
-        align-items: stretch;
     }
 
-    .hero-panel {
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 18px;
+    .header-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        justify-content: flex-end;
+    }
+
+    .ghost-link {
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 999px;
+        padding: 0.45rem 0.8rem;
+        color: var(--text);
+        text-decoration: none;
         background: rgba(255, 255, 255, 0.03);
-        padding: 1rem 1.1rem;
-        height: 100%;
+    }
+
+    .ghost-link:hover {
+        border-color: rgba(245, 158, 11, 0.5);
+        color: var(--text);
+    }
+
+    .hero-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+        margin-top: 1rem;
+    }
+
+    .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 999px;
+        padding: 0.48rem 0.8rem;
+        background: rgba(255, 255, 255, 0.03);
+        color: var(--muted);
+        font-size: 0.9rem;
     }
 
     .hero-link {
@@ -184,6 +218,10 @@ st.markdown(
     .stButton button:hover {
         border-color: rgba(245, 158, 11, 0.65);
         transform: translateY(-1px);
+    }
+
+    div[data-testid="stSidebar"] {
+        display: none;
     }
 </style>
 """,
@@ -360,80 +398,45 @@ if "last_upload" not in st.session_state:
 if "api_base_url" not in st.session_state:
     st.session_state.api_base_url = DEFAULT_API_BASE_URL
 
-
-with st.sidebar:
-    st.markdown("### ContextFlow Studio")
-    st.caption("Live on Streamlit Cloud with an embedded RAG runtime.")
-    st.markdown(f'[Open the public app]({LIVE_APP_URL})')
-    st.session_state.api_base_url = st.text_input("API base URL", value=st.session_state.api_base_url)
-    st.caption("Use the API URL only when running against a separate FastAPI backend.")
-
-    status_placeholder = st.empty()
-    if st.button("Check connection", use_container_width=True):
-        try:
-            health = probe_health(normalize_base_url(st.session_state.api_base_url))
-            status_placeholder.success(f"API healthy: {health.get('status', 'ok')}")
-        except requests.RequestException as exc:
-            status_placeholder.error(response_message(exc))
-
-    st.divider()
-    st.markdown("**Workflow**")
-    if use_embedded_runtime():
-        st.write("1. Open the live Streamlit deployment.")
-        st.write("2. Upload a PDF or TXT file.")
-        st.write("3. Ask a question and inspect the returned sources.")
-    else:
-        st.write("1. Start the FastAPI backend.")
-        st.write("2. Set the API base URL if needed.")
-        st.write("3. Upload a PDF or TXT file, then ask a question.")
-
-    st.divider()
-    if st.button("Reset chat", use_container_width=True):
-        st.session_state.messages = [
-            {
-                "role": "assistant",
-                "content": "Upload a PDF or TXT file, then ask a question about the indexed content.",
-            }
-        ]
-        st.rerun()
+if use_embedded_runtime():
+    api_status = "Embedded runtime"
+else:
+    try:
+        health_data = cached_health(normalize_base_url(st.session_state.api_base_url))
+        api_status = f"Connected ({health_data.get('status', 'ok')})"
+    except requests.RequestException:
+        api_status = "Disconnected"
 
 
 st.markdown(
     """
     <div class="hero">
-        <div class="hero-grid">
+        <div class="header-bar">
             <div>
                 <div class="eyebrow">Document intelligence</div>
                 <h1 class="title">ContextFlow Studio</h1>
-                <p class="subtitle">
-                    Upload documents, index them in Qdrant, and ask grounded questions from a clean Streamlit interface.
-                    The public deployment lives at contextflowapi.streamlit.app and runs the full RAG flow for you.
-                </p>
-                <a class="hero-link" href="https://contextflowapi.streamlit.app/" target="_blank" rel="noopener noreferrer">
-                    Open the live app
-                </a>
             </div>
-            <div class="hero-panel">
-                <div class="metric-label">Deployment</div>
-                <div class="metric-value">Streamlit Cloud</div>
-                <div class="metric-caption">
-                    Hosted publicly at <span style="word-break: break-word;">contextflowapi.streamlit.app</span> with the runtime configured for standalone use.
-                </div>
+            <div class="header-actions">
+                <a class="ghost-link" href="https://contextflowapi.streamlit.app/" target="_blank" rel="noopener noreferrer">Live app</a>
+                <a class="ghost-link" href="#guide">Guide</a>
             </div>
         </div>
+        <p class="subtitle">
+            Upload documents, index them in Qdrant, and ask grounded questions from a clean Streamlit interface.
+            The public deployment runs on Streamlit Cloud and keeps the RAG flow embedded.
+        </p>
+        <div class="hero-row">
+            <div class="pill">Deployment: Streamlit Cloud</div>
+            <div class="pill">Runtime: %s</div>
+            <div class="pill">Live URL: contextflowapi.streamlit.app</div>
+        </div>
+        <a class="hero-link" href="https://contextflowapi.streamlit.app/" target="_blank" rel="noopener noreferrer">
+            Open the live app
+        </a>
     </div>
-    """,
+    """ % html.escape(api_status),
     unsafe_allow_html=True,
 )
-
-try:
-    if use_embedded_runtime():
-        api_status = "Embedded runtime"
-    else:
-        health_data = cached_health(normalize_base_url(st.session_state.api_base_url))
-        api_status = f"Connected ({health_data.get('status', 'ok')})"
-except requests.RequestException:
-    api_status = "Disconnected"
 
 columns = st.columns(3)
 with columns[0]:
@@ -442,6 +445,22 @@ with columns[1]:
     render_metric("Upload types", "PDF / TXT", "The API accepts supported document types and rejects others")
 with columns[2]:
     render_metric("Answer mode", "Grounded", "Responses come from retrieval plus Groq-generated synthesis")
+
+top_actions = st.columns([1, 1, 1])
+with top_actions[0]:
+    if st.button("Reset chat", use_container_width=True):
+        st.session_state.messages = [
+            {
+                "role": "assistant",
+                "content": "Upload a PDF or TXT file, then ask a question about the indexed content.",
+            }
+        ]
+        st.rerun()
+with top_actions[1]:
+    st.markdown(f'<a class="ghost-link" href="{LIVE_APP_URL}" target="_blank" rel="noopener noreferrer">Open public deployment</a>', unsafe_allow_html=True)
+with top_actions[2]:
+    if not use_embedded_runtime():
+        st.caption("Client mode still works via CONTEXTFLOW_API_URL for local setups.")
 
 tab_chat, tab_upload, tab_guide = st.tabs(["Chat", "Upload", "Guide"])
 
@@ -546,14 +565,15 @@ with tab_chat:
                 st.error(error_text)
 
 with tab_guide:
+    st.markdown('<div id="guide"></div>', unsafe_allow_html=True)
     st.markdown('<div class="section-heading">How to run the stack</div>', unsafe_allow_html=True)
     guide_col, notes_col = st.columns([1, 1])
     with guide_col:
         st.markdown("**Live app**")
         st.markdown(f'[Open the live app]({LIVE_APP_URL})')
-        st.markdown("**Backend**")
+        st.markdown("**Local backend**")
         st.code("python -m uvicorn app.main:app --reload", language="powershell")
-        st.markdown("**Streamlit UI**")
+        st.markdown("**Local Streamlit UI**")
         st.code("streamlit run streamlit_app.py", language="powershell")
 
     with notes_col:

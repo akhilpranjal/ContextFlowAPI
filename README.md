@@ -18,7 +18,7 @@ Live app: https://contextflowapi.streamlit.app/
 
 The Streamlit UI is the primary user-facing app:
 
-- Health check in the sidebar
+- Compact deployment/status cards at the top of the page
 - Document upload and indexing
 - Chat-style question answering
 - Source chunk previews for every answer
