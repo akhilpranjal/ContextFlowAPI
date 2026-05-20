@@ -11,6 +11,7 @@ from app.config import Settings, get_settings
 from app.embeddings import EmbeddingService
 from app.ingest import EmptyDocumentError, chunk_pages, extract_pages
 from app.rag_pipeline import RAGPipeline
+from app.runtime import resolve_runtime_mode
 from app.vectorstore import QdrantVectorStore, StoredChunk
 
 DEFAULT_API_BASE_URL = os.getenv("CONTEXTFLOW_API_URL", "http://127.0.0.1:8000")
@@ -154,11 +155,7 @@ def normalize_base_url(base_url: str) -> str:
 
 
 def use_embedded_runtime() -> bool:
-    if RUNTIME_MODE == "embedded":
-        return True
-    if RUNTIME_MODE == "api":
-        return False
-    return False
+    return ACTIVE_RUNTIME_MODE == "embedded"
 
 
 def api_url(base_url: str, path: str) -> str:
@@ -317,16 +314,20 @@ if "last_upload" not in st.session_state:
 if "api_base_url" not in st.session_state:
     st.session_state.api_base_url = DEFAULT_API_BASE_URL
 
-if use_embedded_runtime():
+api_is_available = False
+if RUNTIME_MODE == "embedded":
+    ACTIVE_RUNTIME_MODE = "embedded"
     api_status = "Embedded runtime"
-    runtime_label = "Production"
 else:
     try:
         health_data = cached_health(normalize_base_url(st.session_state.api_base_url))
         api_status = f"Connected ({health_data.get('status', 'ok')})"
+        api_is_available = True
     except requests.RequestException:
         api_status = "Disconnected"
-    runtime_label = "Local API"
+    ACTIVE_RUNTIME_MODE = resolve_runtime_mode(RUNTIME_MODE, api_is_available)
+
+runtime_label = "Production" if ACTIVE_RUNTIME_MODE == "embedded" else "Local API"
 
 
 markup = """
