@@ -18,7 +18,7 @@ RUNTIME_MODE = os.getenv("CONTEXTFLOW_RUNTIME", "auto").strip().lower()
 
 
 st.set_page_config(
-    page_title="ContextFlow Studio",
+    page_title="ContextFlow",
     page_icon="📚",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -62,33 +62,6 @@ st.markdown(
         box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
     }
 
-    .hero-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.65rem;
-        margin-top: 1rem;
-    }
-
-    .pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 999px;
-        padding: 0.48rem 0.8rem;
-        background: rgba(255, 255, 255, 0.03);
-        color: var(--muted);
-        font-size: 0.9rem;
-    }
-
-    .eyebrow {
-        text-transform: uppercase;
-        letter-spacing: 0.18em;
-        font-size: 0.76rem;
-        color: var(--accent);
-        margin-bottom: 0.5rem;
-        font-weight: 700;
-    }
 
     .title {
         font-size: 2.25rem;
@@ -359,29 +332,14 @@ else:
 st.markdown(
     """
     <div class="hero">
-        <div class="eyebrow">Document intelligence</div>
-        <h1 class="title">ContextFlow Studio</h1>
+        <h1 class="title">ContextFlow</h1>
         <p class="subtitle">
             Upload documents, index them in Qdrant, and ask grounded questions from a clean Streamlit interface.
-            The public deployment runs on Streamlit Cloud as the production version.
         </p>
-        <div class="hero-row">
-            <div class="pill">Deployment: Streamlit Cloud</div>
-            <div class="pill">Mode: %s</div>
-            <div class="pill">Live URL: contextflowapi.streamlit.app</div>
-        </div>
     </div>
     """ % html.escape(runtime_label),
     unsafe_allow_html=True,
 )
-
-columns = st.columns(3)
-with columns[0]:
-    render_metric("Runtime", runtime_label, "Embedded on Streamlit Cloud for the public deployment")
-with columns[1]:
-    render_metric("Upload types", "PDF / TXT", "The API accepts supported document types and rejects others")
-with columns[2]:
-    render_metric("Answer mode", "Grounded", "Responses come from retrieval plus Groq-generated synthesis")
 
 top_actions = st.columns([1, 1])
 with top_actions[0]:
@@ -396,11 +354,7 @@ with top_actions[0]:
 with top_actions[1]:
     st.empty()
 
-if use_embedded_runtime():
-    tab_chat, tab_upload = st.tabs(["Chat", "Upload"])
-    tab_guide = None
-else:
-    tab_chat, tab_upload, tab_guide = st.tabs(["Chat", "Upload", "Guide"])
+tab_chat, tab_upload = st.tabs(["Chat", "Upload"])
 
 with tab_upload:
     st.markdown('<div class="section-heading">Index a document</div>', unsafe_allow_html=True)
@@ -514,31 +468,4 @@ with tab_chat:
             with st.chat_message("assistant"):
                 st.error(error_text)
 
-if tab_guide is not None:
-    with tab_guide:
-        st.markdown('<div id="guide"></div>', unsafe_allow_html=True)
-        st.markdown('<div class="section-heading">How to run the stack</div>', unsafe_allow_html=True)
-        guide_col, notes_col = st.columns([1, 1])
-        with guide_col:
-            st.markdown("**Local backend**")
-            st.code("python -m uvicorn app.main:app --reload", language="powershell")
-            st.markdown("**Local Streamlit UI**")
-            st.code("streamlit run streamlit_app.py", language="powershell")
-
-        with notes_col:
-            st.markdown("**Expected environment variables**")
-            st.code(
-                "\n".join(
-                    [
-                        '$env:GROQ_API_KEY="your_groq_api_key"',
-                        '$env:GROQ_MODEL="llama-3.3-70b-versatile"',
-                        '$env:CONTEXTFLOW_API_URL="http://127.0.0.1:8000"',
-                    ]
-                ),
-                language="powershell",
-            )
-
-        st.markdown("**Behavior**")
-        st.write("• Uploading uses the `/upload` endpoint and stores chunks in Qdrant.")
-        st.write("• Asking a question uses the `/query` endpoint and renders the answer with source chunk previews.")
-        st.write("• If the backend returns an error, the UI shows the API response instead of swallowing it.")
+# Guide tab removed per production-only UI requirement
