@@ -2,6 +2,8 @@
 
 ContextFlow is a lightweight document question-answering app built with FastAPI, Qdrant, Sentence Transformers, Groq, and Streamlit. You upload PDFs or TXT files, the app chunks and embeds the content, stores the chunks in Qdrant, and then answers questions with grounded source citations.
 
+Live app: https://contextflowapi.streamlit.app/
+
 ## What It Does
 
 - Upload and index PDF or TXT documents
@@ -117,6 +119,8 @@ If the API is on a different host or port, set `CONTEXTFLOW_API_URL` before laun
 
 ## Standalone Deployment
 
+The public deployment is hosted on Streamlit Community Cloud at https://contextflowapi.streamlit.app/.
+
 For Streamlit Community Cloud, use embedded mode so the UI runs the RAG pipeline directly:
 
 ```powershell
@@ -126,6 +130,8 @@ $env:GROQ_MODEL="llama-3.3-70b-versatile"
 ```
 
 In embedded mode, the Streamlit app can run without a separately hosted FastAPI service. This is the simplest free deployment path.
+
+If you run a separate FastAPI backend, keep `CONTEXTFLOW_API_URL` pointed at that service and switch the UI back to client mode.
 
 ## Usage
 
@@ -197,6 +203,8 @@ Targeted tests cover ingestion, vector search, and the RAG pipeline.
 ## Deployment Notes
 
 For long-lived production storage, run Qdrant as a service or use Qdrant Cloud. The local `data/` fallback is best for development, testing, and embedded deployments.
+
+The current public deployment is available at https://contextflowapi.streamlit.app/.
 
 If you deploy the Streamlit app publicly, remember to configure:
 

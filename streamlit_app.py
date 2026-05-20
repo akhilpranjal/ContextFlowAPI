@@ -15,6 +15,7 @@ from app.vectorstore import QdrantVectorStore, StoredChunk
 
 DEFAULT_API_BASE_URL = os.getenv("CONTEXTFLOW_API_URL", "http://127.0.0.1:8000")
 RUNTIME_MODE = os.getenv("CONTEXTFLOW_RUNTIME", "auto").strip().lower()
+LIVE_APP_URL = "https://contextflowapi.streamlit.app/"
 
 
 st.set_page_config(
@@ -60,6 +61,40 @@ st.markdown(
         border-radius: 24px;
         padding: 1.5rem 1.6rem;
         box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+    }
+
+    .hero-grid {
+        display: grid;
+        grid-template-columns: 1.7fr 1fr;
+        gap: 1rem;
+        align-items: stretch;
+    }
+
+    .hero-panel {
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 1rem 1.1rem;
+        height: 100%;
+    }
+
+    .hero-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        margin-top: 1rem;
+        padding: 0.55rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid rgba(245, 158, 11, 0.35);
+        background: rgba(245, 158, 11, 0.12);
+        color: var(--text);
+        font-weight: 700;
+        text-decoration: none;
+    }
+
+    .hero-link:hover {
+        border-color: rgba(245, 158, 11, 0.7);
+        color: var(--text);
     }
 
     .eyebrow {
@@ -328,9 +363,10 @@ if "api_base_url" not in st.session_state:
 
 with st.sidebar:
     st.markdown("### ContextFlow Studio")
-    st.caption("Streamlit client for uploading documents and querying the RAG API.")
+    st.caption("Live on Streamlit Cloud with an embedded RAG runtime.")
+    st.markdown(f'[Open the public app]({LIVE_APP_URL})')
     st.session_state.api_base_url = st.text_input("API base URL", value=st.session_state.api_base_url)
-    st.caption("Embedded runtime is enabled when `CONTEXTFLOW_RUNTIME=embedded`.")
+    st.caption("Use the API URL only when running against a separate FastAPI backend.")
 
     status_placeholder = st.empty()
     if st.button("Check connection", use_container_width=True):
@@ -342,9 +378,14 @@ with st.sidebar:
 
     st.divider()
     st.markdown("**Workflow**")
-    st.write("1. Start the FastAPI backend.")
-    st.write("2. Upload a PDF or TXT file.")
-    st.write("3. Ask a question and inspect the returned sources.")
+    if use_embedded_runtime():
+        st.write("1. Open the live Streamlit deployment.")
+        st.write("2. Upload a PDF or TXT file.")
+        st.write("3. Ask a question and inspect the returned sources.")
+    else:
+        st.write("1. Start the FastAPI backend.")
+        st.write("2. Set the API base URL if needed.")
+        st.write("3. Upload a PDF or TXT file, then ask a question.")
 
     st.divider()
     if st.button("Reset chat", use_container_width=True):
@@ -360,12 +401,26 @@ with st.sidebar:
 st.markdown(
     """
     <div class="hero">
-        <div class="eyebrow">Document intelligence</div>
-        <h1 class="title">ContextFlow Studio</h1>
-        <p class="subtitle">
-            Upload documents, index them through the API, and interrogate the retrieved context in a focused chat interface.
-            The UI stays thin and direct: it mirrors the backend operations instead of hiding them.
-        </p>
+        <div class="hero-grid">
+            <div>
+                <div class="eyebrow">Document intelligence</div>
+                <h1 class="title">ContextFlow Studio</h1>
+                <p class="subtitle">
+                    Upload documents, index them in Qdrant, and ask grounded questions from a clean Streamlit interface.
+                    The public deployment lives at contextflowapi.streamlit.app and runs the full RAG flow for you.
+                </p>
+                <a class="hero-link" href="https://contextflowapi.streamlit.app/" target="_blank" rel="noopener noreferrer">
+                    Open the live app
+                </a>
+            </div>
+            <div class="hero-panel">
+                <div class="metric-label">Deployment</div>
+                <div class="metric-value">Streamlit Cloud</div>
+                <div class="metric-caption">
+                    Hosted publicly at <span style="word-break: break-word;">contextflowapi.streamlit.app</span> with the runtime configured for standalone use.
+                </div>
+            </div>
+        </div>
     </div>
     """,
     unsafe_allow_html=True,
@@ -494,6 +549,8 @@ with tab_guide:
     st.markdown('<div class="section-heading">How to run the stack</div>', unsafe_allow_html=True)
     guide_col, notes_col = st.columns([1, 1])
     with guide_col:
+        st.markdown("**Live app**")
+        st.markdown(f'[Open the live app]({LIVE_APP_URL})')
         st.markdown("**Backend**")
         st.code("python -m uvicorn app.main:app --reload", language="powershell")
         st.markdown("**Streamlit UI**")
